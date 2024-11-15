@@ -100,11 +100,22 @@
             box-shadow: var(--shadow);
             border: 1px solid rgba(255, 255, 255, 0.1);
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            justify-content: center;
         }
 
-        #score {
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .info-item span:first-child {
+            font-size: 16px;
+            color: #ddd;
+        }
+
+        .info-item span:last-child {
             color: var(--primary-color);
             font-weight: bold;
             font-size: 32px;
@@ -388,6 +399,64 @@
             50% { transform: scale(1.2); opacity: 0.5; }
             100% { transform: scale(0); opacity: 0; }
         }
+
+        /* 添加升级特效样式 */
+        .level-up-text {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            color: var(--primary-color);
+            text-shadow: 0 0 20px var(--primary-color);
+            animation: levelUpAnim 2s ease-out forwards;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        @keyframes levelUpAnim {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.5);
+            }
+            20% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.2);
+            }
+            80% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(1.5);
+            }
+        }
+
+        /* 添加游戏统计信息样式 */
+        .game-stats {
+            background: var(--panel-bg);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* 响应式设计调整 */
+        @media (max-width: 768px) {
+            .game-container {
+                flex-direction: column;
+                padding: 15px;
+            }
+
+            .game-stats {
+                flex-direction: row;
+                justify-content: space-around;
+            }
+        }
     </style>
 </head>
 <body>
@@ -400,8 +469,10 @@
     <div class="game-container">
         <div class="main-game">
             <div class="game-info">
-                <span>分数</span>
-                <span id="score">0</span>
+                <div class="info-item">
+                    <span>分数</span>
+                    <span id="score">0</span>
+                </div>
             </div>
             <canvas id="gameCanvas" width="300" height="600"></canvas>
         </div>
@@ -416,6 +487,16 @@
                 <p><span class="key">↑</span> 旋转方块</p>
                 <p><span class="key">↓</span> 加速下落</p>
                 <p><span class="key">空格</span> 暂停/继续</p>
+            </div>
+            <div class="game-stats">
+                <div class="info-item">
+                    <span>消除行数</span>
+                    <span id="lines">0</span>
+                </div>
+                <div class="info-item">
+                    <span>当前关卡</span>
+                    <span id="level">1</span>
+                </div>
             </div>
         </div>
     </div>
@@ -452,7 +533,11 @@
         let canvas = document.getElementById('gameCanvas');
         let ctx = canvas.getContext('2d');
         let scoreElement = document.getElementById('score');
+        let linesElement = document.getElementById('lines');
+        let levelElement = document.getElementById('level');
         let score = 0;
+        let totalLinesCleared = 0;
+        let currentLevel = 1;
         let grid = Array(ROWS).fill().map(() => Array(COLS).fill(0));
         let piece = null;
         let gameOver = false;
@@ -586,7 +671,7 @@
             return currentPiece;
         }
 
-        // 添加绘制下一个方块的函数
+        // 添加绘制下一个块的函数
         function drawNextPiece() {
             if (!nextPiece) return;
 
@@ -737,7 +822,7 @@
             const newGrid = [];
             const linesToClear = [];
 
-            // 从下往上检查每一行
+            // 从下往上检每一行
             for (let y = ROWS - 1; y >= 0; y--) {
                 if (grid[y].every(cell => cell !== 0)) {
                     linesToClear.push(y);
@@ -748,14 +833,17 @@
             }
 
             if (linesCleared > 0) {
-                console.log(`需要清除的行数: ${linesCleared}`);
-                console.log(`清除的行: ${linesToClear.join(', ')}`);
-
-                // 更新分数
-                score += linesCleared * 100;
+                // 更新分数和消除行数
+                score += linesCleared * 100 * currentLevel;
+                totalLinesCleared += linesCleared;
+                
+                // 更新显示
                 scoreElement.textContent = score;
-                dropInterval = Math.max(200, 1000 - (score / 100) * 50);
-
+                linesElement.textContent = totalLinesCleared;
+                
+                // 更新关卡
+                updateLevel();
+                
                 // 创建粒子效果
                 linesToClear.forEach(y => {
                     for (let x = 0; x < COLS; x++) {
@@ -926,7 +1014,7 @@
                 while (!collide(grid, ghostPiece)) {
                     ghostPiece.y++;
                 }
-                ghostPiece.y--; // 回退一步，到最后的有效位置
+                ghostPiece.y--; // 回退一步到最后的有效位置
 
                 // 绘制虚影方块
                 ghostPiece.shape.forEach((row, y) => {
@@ -1018,18 +1106,21 @@
             gameOver = false;
             isPaused = false;
             score = 0;
+            totalLinesCleared = 0;
+            currentLevel = 1;
             scoreElement.textContent = '0';
+            linesElement.textContent = '0';
+            levelElement.textContent = '1';
             grid = Array(ROWS).fill().map(() => Array(COLS).fill(0));
-            nextPiece = null; // 重置下一个方块
+            nextPiece = null;
             piece = createPiece();
             document.getElementById('startScreen').style.display = 'none';
             document.getElementById('startButton').style.display = 'none';
             document.getElementById('restartButton').style.display = 'none';
             
-            // 重置时间相关变量
-            lastTime = performance.now(); // 使用 performance.now() 获取更精确的时间
-            dropCounter = 0; // 重置下落计数器
-            dropInterval = 1000;
+            lastTime = performance.now();
+            dropCounter = 0;
+            dropInterval = getDropInterval();
             
             requestAnimationFrame(update);
         }
@@ -1108,23 +1199,31 @@
                     }
                     break;
                 case 32: // 空格
-                    isPaused = !isPaused;
+                    togglePause();
                     break;
                 case 80: // P键
-                    isPaused = !isPaused; // 添加P键作为额外的暂停键
+                    togglePause();
                     break;
             }
         });
 
-        // 添加按键抬起事件
+        // 添加暂停切换函数
+        function togglePause() {
+            isPaused = !isPaused;
+            if (!isPaused) {
+                lastTime = performance.now(); // 重置时间，防止暂停后方块突然下落
+                dropInterval = getDropInterval();
+            }
+            updateGameStatus();
+        }
+
+        // 修改按键抬起事件
         document.addEventListener('keyup', event => {
-            if (!gameStarted || gameOver) return;
+            if (!gameStarted || gameOver || isPaused) return;
 
             switch (event.keyCode) {
                 case 40: // 下箭头
-                    if (!isPaused) {
-                        dropInterval = Math.max(200, 1000 - (score / 100) * 50); // 恢复正常速度
-                    }
+                    dropInterval = getDropInterval(); // 使用关卡对应的速度
                     break;
             }
         });
@@ -1157,6 +1256,38 @@
                 const color = COLORS[Math.floor(Math.random() * COLORS.length)];
                 particles.push(new Particle(x, rowY, color, 'lineClear'));
             }
+        }
+
+        // 添加关卡速度计算函数
+        function getDropInterval() {
+            // 基础速度1000ms，每升一级减少10%，最快100ms
+            return Math.max(100, 1000 * Math.pow(0.9, currentLevel - 1));
+        }
+
+        // 添加关卡更新函数
+        function updateLevel() {
+            // 每10行升一级
+            const newLevel = Math.floor(totalLinesCleared / 10) + 1;
+            if (newLevel !== currentLevel) {
+                currentLevel = newLevel;
+                levelElement.textContent = currentLevel;
+                dropInterval = getDropInterval();
+                // 可以在这里添加升级特效
+                showLevelUpEffect();
+            }
+        }
+
+        // 添加升级特效
+        function showLevelUpEffect() {
+            const levelUpText = document.createElement('div');
+            levelUpText.className = 'level-up-text';
+            levelUpText.textContent = `Level ${currentLevel}!`;
+            document.body.appendChild(levelUpText);
+            
+            // 移除动画结束后的元素
+            setTimeout(() => {
+                levelUpText.remove();
+            }, 2000);
         }
     </script>
 </body>
